@@ -342,6 +342,7 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      p->time_slice = INTERV;
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
