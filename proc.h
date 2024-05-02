@@ -54,6 +54,7 @@ struct proc {
   int stime; //Tempo SLEEPING
   int retime; //Tempo READY(RUNNABLE) time
   int rutime; // Tempo executando (RUNNING)
+  int priority; //Prioridade do processo
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -61,3 +62,31 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+struct fila {
+	struct proc *procs;//processos na fila
+	int tam;//tamanho da fila
+	int capacidadeMAX;//indica a capacidade máxima da fila
+
+};
+
+void addAFila(struct fila *f, struct proc *p){
+	if (f->tam >= f->capacidadeMAX)
+    		return; //fila cheia
+    	f->proces[f->tam++] = p;
+
+}
+
+struct proc *
+removerDaFila(struct fila *f){
+ if(f->tam == 0)
+ 	return 0;//fila vazia
+ struct proc *p = f->procs[0]//primeiro processo da fila
+ for(int i = 0; i < f->tam - 1; i++){
+ 	f->procs[i] = q->procs[i+1];
+ }
+ f->tam--;//atualiza o tamanho da fila
+ return p;//processo removido
+
+};
+

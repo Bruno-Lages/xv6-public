@@ -89,3 +89,12 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+int
+change_prio(int priority){
+	if(priority < 1 || priority > 4)
+		return -1;
+	struct proc *procAtual = myproc(); //procAtual recebe o processo atual
+	procAtual->priority = priority;
+	
+	return 0;
+}
