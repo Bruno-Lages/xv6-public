@@ -327,7 +327,7 @@ scheduler(void)
   c->proc = 0;
   
   for(;;){
-   for(int i = numPrio - 1; i >= 0; i--){
+   for(int i = 4 - 1; i >= 0; i--){
    	if(filas[i].tam > 0){//se a fila não estiver vazia
    	
 
@@ -342,7 +342,7 @@ scheduler(void)
 
 	    //adicionar processo novamente na fila, mas com nova prioridade
 	     acquire(&ptable.lock);
-	     addAFila(&filas[p->prioridade - 1], p);//ajusta índice da fila
+	     addAFila(&filas[p->priority - 1], p);//ajusta índice da fila
 	     release(&ptable.lock);
 	  }
     }

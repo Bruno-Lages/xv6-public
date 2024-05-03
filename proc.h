@@ -1,3 +1,5 @@
+#ifndef PROC_H
+#define PROC_H
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -69,24 +71,24 @@ struct fila {
 	int capacidadeMAX;//indica a capacidade máxima da fila
 
 };
+extern struct fila filas[4];
 
 void addAFila(struct fila *f, struct proc *p){
 	if (f->tam >= f->capacidadeMAX)
     		return; //fila cheia
-    	f->proces[f->tam++] = p;
-
-}
-
-struct proc *
-removerDaFila(struct fila *f){
- if(f->tam == 0)
- 	return 0;//fila vazia
- struct proc *p = f->procs[0]//primeiro processo da fila
- for(int i = 0; i < f->tam - 1; i++){
- 	f->procs[i] = q->procs[i+1];
- }
- f->tam--;//atualiza o tamanho da fila
- return p;//processo removido
+    	f->procs[f->tam++] = *p;
 
 };
 
+struct proc *removerDaFila(struct fila *f) {
+    if (f->tam == 0)
+        return 0; // fila vazia
+
+    struct proc *p = &f->procs[0]; // primeiro processo da fila
+    for (int i = 0; i < f->tam - 1; i++) {
+        f->procs[i] = f->procs[i + 1];
+    }
+    f->tam--; // atualiza o tamanho da fila
+    return p; // processo removido
+};
+#endif 

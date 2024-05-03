@@ -1,8 +1,10 @@
 #include "types.h"
 #include "stat.h"
 #include "user.h"
+#include "mmu.h"
+#include "param.h"
+#include "proc.h"
 
-struct fila filas[4];
 
 int main() {
    for(int i = 0; i<4;i++){
