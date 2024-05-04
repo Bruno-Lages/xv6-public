@@ -88,6 +88,10 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->retime = 0;
+  p->rutime = 0;
+  p->stime = 0;
+  p->ctime = ticks;
 
   release(&ptable.lock);
 
@@ -287,6 +291,68 @@ wait(void)
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+void manage_timers() {
+  	struct proc *p;
+
+  	acquire(&ptable.lock);
+  
+	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+		if (p->state == RUNNABLE) p->retime++;
+		if (p->state == RUNNING) p->rutime++;
+		if (p->state == SLEEPING) p->stime++;
+
+	}
+  
+  	release(&ptable.lock);
+}
+
+// Wait for a child process to exit and return its pid.
+// Return -1 if this process has no children.
+int
+wait2(int* retime, int* rutime, int* stime)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        *retime = p->retime;
+        *rutime = p->rutime;
+        *stime = p->stime;
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
