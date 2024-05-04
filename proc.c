@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -525,4 +526,33 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+void geraFilas(struct fila *filas) {
+     for(int i = 0; i<4;i++){
+   	filas[i].procs = 0;
+   	filas[i].tam = 0;
+   	filas[i].capacidadeMAX = NPROC;
+   }
+    
+}
+
+
+void addAFila(struct fila *f, struct proc *p){
+	if (f->tam >= f->capacidadeMAX)
+    		return; //fila cheia
+    	f->procs[f->tam++] = *p;
+
+}
+
+struct proc *removerDaFila(struct fila *f) {
+    if (f->tam == 0)
+        return 0; // fila vazia
+
+    struct proc *p = &f->procs[0]; // primeiro processo da fila
+    for (int i = 0; i < f->tam - 1; i++) {
+        f->procs[i] = f->procs[i + 1];
+    }
+    f->tam--; // atualiza o tamanho da fila
+    return p; // processo removido
 }

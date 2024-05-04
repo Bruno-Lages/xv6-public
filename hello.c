@@ -5,14 +5,11 @@
 #include "param.h"
 #include "proc.h"
 
-
 int main() {
-   for(int i = 0; i<4;i++){
-   	filas[i].procs = 0;
-   	filas[i].tam = 0;
-   	filas[i].capacidadeMAX = NPROC;
-   }
+	struct fila filas[4]; // Declare um array de 4 filas
 
+    // Inicializa as filas
+    geraFilas(filas);
 
     printf(1, "I HATE SO!\n");
     printf(1, "I HATE SO!\n");
