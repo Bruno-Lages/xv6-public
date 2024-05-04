@@ -320,6 +320,7 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+struct fila filas[4];
 void
 scheduler(void)
 {
@@ -528,7 +529,7 @@ procdump(void)
   }
 }
 
-void geraFilas(struct fila *filas) {
+void gerarFilas(struct fila *filas) {
      for(int i = 0; i<4;i++){
    	filas[i].procs = 0;
    	filas[i].tam = 0;

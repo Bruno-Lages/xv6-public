@@ -76,7 +76,7 @@ struct fila {
 extern struct fila filas[4];
 
 // protótipo da função para gerar as filas
-extern void geraFilas(struct fila *filas);
+extern void gerarFilas(struct fila *filas);
 
 // protótipos das funções para adicionar e remover processos de uma fila
 void addAFila(struct fila *f, struct proc *p);
