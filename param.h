@@ -12,3 +12,4 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 #define INTERV 5 // time slice size
+#define MULTIQUEUESCHEDULING 1 // wheter or not to use Multi-Level Queue Scheduling or Round Robin as scheduler

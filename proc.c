@@ -783,33 +783,67 @@ void scheduler(void)
   ptable.smallest_vrutime = 0;
   ptable.last_fcfs_index = -1;
   ptable.last_rr_index = -1;
-  
-  for(;;){
 
-	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-		if(p->state != RUNNABLE) continue;
+	// Multi-Level Queue Scheduling
+	if(MULTIQUEUESCHEDULING)
+	for(;;){
 
-		if(p->retime < P1TOP2) continue;
-		else if(p->retime < P2TOP3) p->priority = 2;
-		else if(p->retime < P3TOP4) p->priority = 3;
-		else p->priority = 4;
+		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+			if(p->state != RUNNABLE) continue;
+
+			if(p->retime < P1TOP2) continue;
+			else if(p->retime < P2TOP3) p->priority = 2;
+			else if(p->retime < P3TOP4) p->priority = 3;
+			else p->priority = 4;
+		}
+
+		p = NULL;
+
+		o1_scheduler(p, c);
+
+		if(p != NULL) continue; 
+		
+		round_robin(p, c);
+		
+		if(p != NULL) continue; 
+		
+		cfs(p, c);
+		
+		if(p != NULL) continue; 
+		
+		fcfs(p, c);
+
 	}
 
-	p = NULL;
+	// Round Robin
+	else
+	for(;;){
+    // Enable interrupts on this processor.
+    sti();
 
-	o1_scheduler(p, c);
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		if(p->state != RUNNABLE)
+			continue;
 
-	if(p != NULL) continue; 
-  	
-	round_robin(p, c);
-	
-	if(p != NULL) continue; 
-  	
-	cfs(p, c);
-	
-	if(p != NULL) continue; 
-  	
-	fcfs(p, c);
+		// Switch to chosen process.  It is the process's job
+		// to release ptable.lock and then reacquire it
+		// before jumping back to us.
+		c->proc = p;
+		switchuvm(p);
+		p->state = RUNNING;
+		p->time_slice = INTERV;
+		p->n_execs += 1;
+
+		swtch(&(c->scheduler), p->context);
+		switchkvm();
+
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
+    }
+    release(&ptable.lock);
 
   }
 }
@@ -825,8 +859,6 @@ void yield(void) {
 }
 
 void changeprio(int priority) {
-	// acquire(&ptable.lock);
 	myproc()->priority = priority;
 	yield();
-	// release(&ptable.lock);
 }
