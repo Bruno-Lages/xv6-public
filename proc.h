@@ -54,7 +54,29 @@ struct proc {
   int retime; //Tempo READY(RUNNABLE) time
   int rutime; // Tempo executando (RUNNING)
   int stime; //Tempo SLEEPING
+  int n_execs; // número de vezes que foi executado na cpu
+  int priority; // Qual fila de prioridade pertence
+  int o1_list; // lista de ativa ou experada do algoritmo o(1)
+  int o1_priority; // prioridade/fila do algoritmo O(1)
+  int vruntime; // virtual runtime do CFS
 };
+
+#define NUM_QUEUES 40
+#define STATIC_PRIORITY 20
+
+struct queue {
+    struct proc* head;
+    struct proc* tail;
+};
+
+struct rrtable {
+	int size; // tamanho da fila
+	int max_size; // indica a capacidade máxima da fila
+};
+
+#define P1TOP2 5
+#define P2TOP3 10
+#define P3TOP4 15
 
 void manage_timers();
 

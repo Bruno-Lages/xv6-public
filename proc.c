@@ -6,11 +6,20 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include <stddef.h>
 
-struct {
-  struct spinlock lock;
-  struct proc proc[NPROC];
-} ptable;
+int inf = 1000000000;
+
+struct ptable_struct {
+	struct spinlock lock;
+	struct proc proc[NPROC];
+	int o1_active_list;
+	int last_rr_index;
+	int smallest_vrutime;
+	int last_fcfs_index;
+};
+
+struct ptable_struct ptable;
 
 static struct proc *initproc;
 
@@ -91,7 +100,12 @@ found:
   p->retime = 0;
   p->rutime = 0;
   p->stime = 0;
+  p->n_execs = 0;
   p->ctime = ticks;
+  p->o1_priority = STATIC_PRIORITY; // o1 queue
+  p->o1_list = ptable.o1_active_list; //o1 list
+  p->vruntime = ptable.smallest_vrutime;
+  p->priority = 2;
 
   release(&ptable.lock);
 
@@ -332,9 +346,7 @@ void manage_timers() {
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
-int
-wait2(int* retime, int* rutime, int* stime)
-{
+int wait2(int* retime, int* rutime, int* stime, int* n_execs) {
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
@@ -353,6 +365,7 @@ wait2(int* retime, int* rutime, int* stime)
         *retime = p->retime;
         *rutime = p->rutime;
         *stime = p->stime;
+        *n_execs = p->n_execs;
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
@@ -374,51 +387,6 @@ wait2(int* retime, int* rutime, int* stime)
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
-  }
-}
-
-//PAGEBREAK: 42
-// Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run
-//  - swtch to start running that process
-//  - eventually that process transfers control
-//      via swtch back to the scheduler.
-void
-scheduler(void)
-{
-  struct proc *p;
-  struct cpu *c = mycpu();
-  c->proc = 0;
-  
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
-
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      p->time_slice = INTERV;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
-    release(&ptable.lock);
-
   }
 }
 
@@ -448,15 +416,6 @@ sched(void)
   mycpu()->intena = intena;
 }
 
-// Give up the CPU for one scheduling round.
-void
-yield(void)
-{
-  acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
-  sched();
-  release(&ptable.lock);
-}
 
 // A fork child's very first scheduling by scheduler()
 // will swtch here.  "Return" to user space.
@@ -598,4 +557,276 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+void fcfs(struct proc *p, struct cpu *c) {
+	// Enable interrupts on this processor.
+    sti();
+
+	struct proc *p2 = NULL;
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(int i = 0; i < NPROC; i++){
+		
+		if(i == NPROC - 1) ptable.last_fcfs_index = -1;
+		
+		p2 = &ptable.proc[i];
+		
+		if(p2->state != RUNNABLE) continue;
+
+		if(p2->priority != 1) continue;
+
+		if((ptable.last_fcfs_index >= 0) && (i <= ptable.last_fcfs_index)) continue;
+
+		p = p2;
+
+		ptable.last_fcfs_index = i;
+
+		break;
+	}
+
+	if(p != NULL) {
+
+		// Switch to chosen process.  It is the process's job
+		// to release ptable.lock and then reacquire it
+		// before jumping back to us.
+		c->proc = p;
+		switchuvm(p);
+		p->state = RUNNING;
+		p->time_slice = INTERV;
+		p->n_execs += 1;
+
+		swtch(&(c->scheduler), p->context);
+		switchkvm();
+
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
+    }
+    release(&ptable.lock);
+}
+
+void cfs(struct proc *p, struct cpu *c) {
+	// Enable interrupts on this processor.
+    sti();
+
+	struct proc *p2 = NULL;
+	int smallest_vrutime = inf;
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p2 = ptable.proc; p2 < &ptable.proc[NPROC]; p2++){
+		if(p2->state != RUNNABLE) continue;
+
+		if(p2->priority != 2) continue;
+
+		if(p2->vruntime == NULL || p2->vruntime < 0) p2->vruntime = ptable.smallest_vrutime;
+
+		if(p2->vruntime <= smallest_vrutime) {
+			p = p2;
+			smallest_vrutime = p->vruntime;
+		}
+	}
+
+	if (p != NULL) {
+
+		ptable.smallest_vrutime = smallest_vrutime;
+
+		// Switch to chosen process.  It is the process's job
+		// to release ptable.lock and then reacquire it
+		// before jumping back to us.
+		c->proc = p;
+		switchuvm(p);
+		p->state = RUNNING;
+		p->time_slice = INTERV;
+		p->n_execs += 1;
+
+		swtch(&(c->scheduler), p->context);
+		switchkvm();
+
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
+    } else {
+		ptable.smallest_vrutime = 0;
+	}
+    release(&ptable.lock);
+}
+
+void round_robin(struct proc *p, struct cpu *c) {
+	// Enable interrupts on this processor.
+    sti();
+
+	struct proc *p2 = NULL;
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(int i = 0; i < NPROC; i++){
+
+		if(i == NPROC - 1) ptable.last_rr_index = -1;
+		
+		p2 = &ptable.proc[i];
+		
+		if(p2->state != RUNNABLE) continue;
+
+		if(p2->priority != 3) continue;
+
+		if((ptable.last_rr_index >= 0) && (i <= ptable.last_rr_index)) continue;
+
+		p = p2;
+
+		ptable.last_rr_index = i;
+
+		break;
+	}
+
+	if(p != NULL) {
+
+		// Switch to chosen process.  It is the process's job
+		// to release ptable.lock and then reacquire it
+		// before jumping back to us.
+		c->proc = p;
+		switchuvm(p);
+		p->state = RUNNING;
+		p->time_slice = INTERV;
+		p->n_execs += 1;
+
+		swtch(&(c->scheduler), p->context);
+		switchkvm();
+
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
+    }
+    release(&ptable.lock);
+}
+
+
+int fmin(int a, int b) {
+    return (a < b) ? a : b;
+}
+
+int fmax(int a, int b) {
+    return (a > b) ? a : b;
+}
+
+void change_o1_prio(struct proc *p) {
+	// calcula nova prioridade
+	int bonus; 
+	if(p->stime < 100) {
+		bonus = 0; 
+	} else if(p->stime < 200){
+		bonus = 5;
+	} else {
+		bonus = 10;
+	}
+
+	int new_priority = fmax(0, fmin(STATIC_PRIORITY - bonus + 5, 39));
+	
+	p->o1_list = !ptable.o1_active_list;
+	p->o1_priority = new_priority;
+	// insert_into_queue(ptable.active_queues, p, new_priority);
+}
+
+void o1_scheduler(struct proc *p, struct cpu *c) {
+	// Enable interrupts on this processor.
+    sti();
+
+	struct proc *p2;
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+	for (int i = 0; i < NUM_QUEUES; ++i) {
+
+		for(p2 = ptable.proc; p2 < &ptable.proc[NPROC]; p2++){
+			if(p2->priority != 4) continue;
+			
+			if(p2->o1_list == !ptable.o1_active_list) continue;
+
+			if(p2->o1_priority != i) continue;
+			
+			if(p2->state != RUNNABLE) continue;
+
+			p = p2;
+			
+			// Switch to chosen process.  It is the process's job
+			// to release ptable.lock and then reacquire it
+			// before jumping back to us.
+			c->proc = p;
+			switchuvm(p);
+			p->state = RUNNING;
+			p->time_slice = INTERV;
+			p->n_execs += 1;
+
+			swtch(&(c->scheduler), p->context);
+			switchkvm();
+
+			// Process is done running for now.
+			// It should have changed its p->state before coming back.
+			c->proc = 0;
+		}
+	}
+	
+	// switch lists after done
+	ptable.o1_active_list = !ptable.o1_active_list;
+
+    release(&ptable.lock);
+}
+
+void scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  
+  ptable.smallest_vrutime = 0;
+  ptable.last_fcfs_index = -1;
+  ptable.last_rr_index = -1;
+  
+  for(;;){
+
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		if(p->state != RUNNABLE) continue;
+
+		if(p->retime < P1TOP2) continue;
+		else if(p->retime < P2TOP3) p->priority = 2;
+		else if(p->retime < P3TOP4) p->priority = 3;
+		else p->priority = 4;
+	}
+
+	p = NULL;
+
+	o1_scheduler(p, c);
+
+	if(p != NULL) continue; 
+  	
+	round_robin(p, c);
+	
+	if(p != NULL) continue; 
+  	
+	cfs(p, c);
+	
+	if(p != NULL) continue; 
+  	
+	fcfs(p, c);
+
+  }
+}
+
+// Give up the CPU for one scheduling round.
+void yield(void) {
+    acquire(&ptable.lock);  //DOC: yieldlock
+    myproc()->state = RUNNABLE;
+    sched();
+    if (myproc()->priority == 4) change_o1_prio(myproc());
+    if (myproc()->priority == 2) myproc()->vruntime += INTERV;
+    release(&ptable.lock);
+}
+
+void changeprio(int priority) {
+	// acquire(&ptable.lock);
+	myproc()->priority = priority;
+	yield();
+	// release(&ptable.lock);
 }

@@ -36,11 +36,22 @@ int sys_wait2(void) {
     int *stime;
     if (argptr(2, (void*)&stime, sizeof(stime)) < 0) return -1;
     
-	return wait2(retime, rutime, stime);
+    int *n_execs;
+    if (argptr(3, (void*)&n_execs, sizeof(n_execs)) < 0) return -1;
+    
+	return wait2(retime, rutime, stime, n_execs);
 }
 
 int sys_yield(void) {
 	yield();
+	return 0;
+}
+
+int sys_changeprio(void) {
+	int priority;
+    if(argint(0, &priority) < 0) return -1;
+    if(priority < 1 || priority > 4) return -1;
+    changeprio(priority);
 	return 0;
 }
 

@@ -103,6 +103,7 @@ extern int sys_unlink(void);
 extern int sys_wait(void);
 extern int sys_wait2(void);
 extern int sys_yield(void);
+extern int sys_changeprio(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
 
@@ -112,6 +113,7 @@ static int (*syscalls[])(void) = {
 [SYS_wait]    sys_wait,
 [SYS_wait2]   sys_wait2,
 [SYS_yield]   sys_yield,
+[SYS_changeprio]   sys_changeprio,
 [SYS_pipe]    sys_pipe,
 [SYS_read]    sys_read,
 [SYS_kill]    sys_kill,

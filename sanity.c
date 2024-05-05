@@ -1,96 +1,176 @@
 //IMPLEMENTACAO SANITY
 #include "types.h"
 #include "user.h"
-int main(int argc, char *argv[])
-{
-    if (argc != 2){
-        printf(1, "Sanity expects one parameter [n]\n");
-        exit();
- 	}
 
-    int n=atoi(argv[1]);
-    //loop creating 3n processes
-    int pid;
-    int proc_type;
-    //Running processes
+#define CPU_BOUND 0
+#define SHORT_CPU 1
+#define IO_BOUND 2
 
-    for (int i=0; i<n*3;i++)
-    {
-        pid=fork();
-        if(pid < 0) {
-            printf(1, "Fork failed.\n");
+#define NUM_PRIORITIES 4
+#define N_PRIO_TESTS 7 // define o valor de n para os testes de prioridade
+
+int round_up(int dividend, int divisor) {
+    return (dividend + divisor - 1) / divisor;
+}
+
+void cpu_bound(int prio_test, int priority) {
+    if(prio_test) changeprio(priority); 
+    for (int i = 0; i < 100; i++) {
+        for (int j = 0; j < 1000000; j++) {}
+    }
+}
+
+void short_cpu() {
+    for (int i = 0; i < 20; i++) {
+        for (int j = 0; j < 1000000; j++) {
+            if(j == 0) yield();
         }
-        printf(1, "pid: %d.\n", pid);
-        if(pid==0) //if its the child
-            {
-                proc_type=getpid()%3;
-                printf(1, "while: %d.\n", proc_type);
-                switch (proc_type) {
-                case 0: //CPU-BOUND
-                    for (int a = 0; a < 100; a++)
-                        for (int b = 0; b<1000000; b++){}						
-                        // {for (double z = 0; z < 10000.0; z+= 0.1)
-				        //  {double x =  x + 3.14 * 89.64;}} 
+    }
+}
 
-                    
+void io_bound() {
+    for (int i = 0; i < 100; i++) {
+        sleep(1);
+    }
+}
+
+int main(int argc, char *argv[]) {
+    
+    if (argc != 2) {
+        
+        printf(1, "help:\n");
+        printf(1, "Como usar: sanity <n> \n", argv[0]);
+        printf(1, "Realiza comparações para <n> maior que 0\n", argv[0]);
+        printf(1, "Realiza testes de mudança de prioridade para <n> igual a 0\n", argv[0]);
+        return 1;
+        
+    }
+
+    int n = atoi(argv[1]);
+    int ready_time, running_time, sleeping_time, n_execs;
+
+    int cpu_bound_ready = 0;
+    int cpu_bound_sleeping = 0;
+    int cpu_bound_turnaround = 0;
+    int cpu_bound_n_execs = 0;
+    
+    int s_cpu_ready = 0;
+    int s_cpu_sleeping = 0;
+    int s_cpu_turnaround = 0;
+    int s_cpu_n_execs = 0;
+    
+    int io_bound_ready = 0;
+    int io_bound_sleeping = 0;
+    int io_bound_turnaround = 0;
+    int io_bound_n_execs = 0;
+
+    int prio_test = !n;
+
+    if(prio_test) n = N_PRIO_TESTS;
+    
+    for (int i = 0; i < 3 * n; i++) {
+        
+        int pid = fork();
+        
+        if (pid < 0) {
+            
+            printf(1, "Falha ao criar processo\n");
+            return 1;
+
+        } else if (pid == 0) {
+            
+            int child_pid = getpid();
+            
+            if(prio_test) child_pid = 3;
+            
+            switch (child_pid % 3) {
+                case CPU_BOUND:
+                    cpu_bound(prio_test, i % NUM_PRIORITIES);
                     break;
-                case 1: //S-CPU
-                    for (int a = 0; a < 20; a++){
-                        for (int b = 0; b<1000000; b++){}
-                        //     {for (double z = 0; z < 10000.0; z+= 0.1)
-				        //  {double x =  x + 3.14 * 89.64;}}
-                            // asm volatile("int $0x80"); // Invoke the yield system call
-                        }
-                    break;  
-                case 2: //IO-BOUND
-                    for (int a = 0; a < 100; a++)
-                        {sleep(1);}
+
+                case SHORT_CPU:
+                    short_cpu();
                     break;
-                default:
+
+                case IO_BOUND:
+                    io_bound();
                     break;
-                }
-                exit(); //exiting children processes
             }
+            exit();
+        }
     }
 
-    //Info for each process
-    int retime,cpu_retime=0,s_retime=0,io_retime=0;
-	int rutime,cpu_rutime=0,s_rutime=0, io_rutime=0;
-	int stime, cpu_stime=0, s_stime=0, io_stime=0;
-    for (int i=0; i<n*3;i++){
-        pid=wait2(&retime, &rutime, &stime);
-        // pid=wait();
-        proc_type=pid%3;
-        printf(1, "proc type: %d\n", proc_type);
-        switch (proc_type)
-        {
-            case 0: //CPU-BOUND
-                printf(1, "CPU-Bound, pid: %d, ready time: %d, running time: %d, sleeping time: %d\n", pid, retime, rutime, stime);
-                cpu_retime+=retime;
-                cpu_rutime+=rutime;
-                cpu_stime+=stime;
+    for (int i = 0; i < 3 * n; i++) {
+        int pid = wait2(&ready_time, &running_time, &sleeping_time, &n_execs);
+        
+        int switch_condition = pid % 3;
 
+        if(prio_test) switch_condition = CPU_BOUND;
+
+        switch (switch_condition) {
+            case CPU_BOUND:
+                cpu_bound_ready += ready_time;
+                cpu_bound_sleeping += sleeping_time;
+                cpu_bound_turnaround += ready_time + running_time + sleeping_time;
+                cpu_bound_n_execs += n_execs;
+
+                printf(1, "\nCPU-B:\t pid: %d\t ready: %d\t running: %d\t sleeping: %d\t n_execs: %d",
+                pid, ready_time, running_time, sleeping_time, n_execs);
                 break;
-            case 1: //S-CPU
-                printf(1, "S-Bound, pid: %d, ready time: %d, running time: %d, sleeping time: %d\n", pid, retime, rutime, stime);
-                s_retime+=retime;
-                s_rutime+=rutime;
-                s_stime+=stime;
-                break;  
-            case 2: //IO-BOUND
-                printf(1, "IO-Bound, pid: %d, ready time: %d, running time: %d, sleeping time: %d\n", pid, retime, rutime, stime);
-                io_retime+=retime;
-                io_rutime+=rutime;
-                io_stime+=stime;
+            
+            case SHORT_CPU:
+                s_cpu_ready += ready_time;
+                s_cpu_sleeping += sleeping_time;
+                s_cpu_turnaround += ready_time + running_time + sleeping_time;
+                s_cpu_n_execs += n_execs;
+
+                printf(1, "\nS-CPU:\t pid: %d\t ready: %d\t running: %d\t sleeping: %d\t n_execs: %d",
+                pid, ready_time, running_time, sleeping_time, n_execs);
                 break;
-            default:
+            
+            case IO_BOUND:
+                io_bound_ready += ready_time;
+                io_bound_sleeping += sleeping_time;
+                io_bound_turnaround += ready_time + running_time + sleeping_time;
+                io_bound_n_execs += n_execs;
+
+                printf(1, "\nIO-B:\t pid: %d\t ready: %d\t running: %d\t sleeping: %d\t n_execs: %d",
+                pid, ready_time, running_time, sleeping_time, n_execs);
                 break;
         }
     }
-    //Average Info
-	printf(1, "\\n\nCPU-Bound:\nAverage ready time: %d\n\
-    Average running time: %d\nAverage sleeping time: %d\nAverage turnaround time: %d\n\n\n", cpu_retime/n, cpu_rutime/n, cpu_stime/n, (cpu_retime+cpu_rutime+cpu_stime)/n);
-	printf(1, "S-Bound:\nAverage ready time: %d\nAverage running time: %d\nAverage sleeping time: %d\nAverage turnaround time: %d\n\n\n", s_retime/n, s_rutime/n, s_stime/n,(s_retime+s_rutime+s_stime)/n);
-	printf(1, "I/O-Bound:\nAverage ready time: %d\nAverage running time: %d\nAverage sleeping time: %d\nAverage turnaround time: %d\n\n\n", io_retime/n, io_rutime/n, io_stime/n,(io_retime+io_rutime+io_stime)/n);
-	exit();
+
+    cpu_bound_ready = round_up(cpu_bound_ready, n);
+    cpu_bound_sleeping = round_up(cpu_bound_sleeping, n);
+    cpu_bound_turnaround = round_up(cpu_bound_turnaround, n);
+    cpu_bound_n_execs = round_up(cpu_bound_n_execs, n);
+    
+    s_cpu_ready = round_up(s_cpu_ready, n);
+    s_cpu_sleeping = round_up(s_cpu_sleeping, n);
+    s_cpu_turnaround = round_up(s_cpu_turnaround, n);
+    s_cpu_n_execs = round_up(s_cpu_n_execs, n);
+    
+    io_bound_ready = round_up(io_bound_ready, n);
+    io_bound_sleeping = round_up(io_bound_sleeping, n);
+    io_bound_turnaround = round_up(io_bound_turnaround, n);
+    io_bound_n_execs = round_up(io_bound_n_execs, n);
+
+    printf(1, "\n------------------------------------------------------------------------------------");
+    printf(1, "\n           \t\t AVERAGE TIMES");
+    printf(1, "\n-----------\t CPU-B\t S-CPU\t IO-B");
+    
+    printf(1, "\nready time:\t %d\t %d\t %d",
+    cpu_bound_ready, s_cpu_ready, io_bound_ready);
+    
+    printf(1, "\nsleep time:\t %d\t %d\t %d",
+    cpu_bound_sleeping, s_cpu_sleeping, io_bound_sleeping);
+
+    printf(1, "\nturnaround:\t %d\t %d\t %d",
+    cpu_bound_turnaround, s_cpu_turnaround, io_bound_turnaround);
+    
+    printf(1, "\nn_execs:\t %d\t %d\t %d\n",
+    cpu_bound_n_execs, s_cpu_n_execs, io_bound_n_execs);
+    
+    exit();
+
 }

@@ -34,15 +34,12 @@ idtinit(void)
 
 //PAGEBREAK: 41
 void
-trap(struct trapframe *tf)
-{
+trap(struct trapframe *tf) {
   if(tf->trapno == T_SYSCALL){
-    if(myproc()->killed)
-      exit();
+    if(myproc()->killed) exit();
     myproc()->tf = tf;
     syscall();
-    if(myproc()->killed)
-      exit();
+    if(myproc()->killed) exit();
     return;
   }
 
@@ -104,10 +101,10 @@ trap(struct trapframe *tf)
 	// Force process to give up CPU on clock tick.
 	// If interrupts were on while locks held, would need to check nlock.
 	if(myproc() && myproc()->state == RUNNING &&
-    tf->trapno == T_IRQ0+IRQ_TIMER) {
+    tf->trapno == T_IRQ0+IRQ_TIMER && myproc()->priority != 1) {
 
 		int time_slice = myproc()->time_slice;
-		if(time_slice) {
+		if(time_slice > 0) {
 			myproc()->time_slice = time_slice - 1;
 		} else {
 			yield();
