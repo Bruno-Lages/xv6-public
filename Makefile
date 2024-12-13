@@ -182,6 +182,8 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_date\
+	_forktest\
+	_corretor\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
