@@ -103,10 +103,6 @@ struct segdesc {
 #ifndef __ASSEMBLER__
 typedef uint pte_t;
 
-//tp2.2
-static pte_t *walkpgdir(pde_t *pgdir, const void *va, int alloc);
-
-
 // Task state segment format
 struct taskstate {
   uint link;         // Old ts selector

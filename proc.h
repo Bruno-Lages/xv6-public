@@ -56,6 +56,3 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
-char* virt2real(char *va);
-int num_pages(void);

@@ -98,24 +98,3 @@ sys_date(void)
   // seu código aqui
   return 0;
 }
-//Chamadas de Sistema para lhe auxiliar
-int sys_virt2real(void) {
-    char *va;
-    if(argptr(0, &va, sizeof(va)) < 0)
-        return 0;
-    char *physical_addr = virt2real(va);
-    return (int)physical_addr; // Fazer o cast para int aqui
-}
-
-char* virt2real(char *va) {
-    struct proc *p = myproc();
-    pte_t *pte = walkpgdir(p->pgdir, va, 0);
-    if (pte && (*pte & PTE_P)) {
-        // Página está presente, retornar endereço físico
-        return (char*)(PTE_ADDR(*pte) | ((uint)va & (PGSIZE - 1)));
-    } else {
-        // Endereço virtual não mapeado
-        return 0;
-    }
-}
-

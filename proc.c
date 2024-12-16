@@ -532,24 +532,3 @@ procdump(void)
     cprintf("\n");
   }
 }
-// Chamadas de Sistema para lhe auxiliar
-int num_pages(void) {
-    struct proc *p = myproc();
-    int count = 0;
-
-    for (int i = 0; i < NPDENTRIES; i++) {
-        pde_t *pde = &p->pgdir[i];
-        if (*pde & PTE_P) {
-            // Entrada de diretório está presente
-            pte_t *pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
-            for (int j = 0; j < NPTENTRIES; j++) {
-                if (pgtab[j] & PTE_P) {
-                    // Entrada de tabela está presente
-                    count++;
-                }
-            }
-        }
-    }
-
-    return count;
-}
